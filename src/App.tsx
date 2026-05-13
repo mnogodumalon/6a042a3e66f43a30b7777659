@@ -6,7 +6,6 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorBusProvider } from '@/components/ErrorBus';
 import { Layout } from '@/components/Layout';
 import DashboardOverview from '@/pages/DashboardOverview';
-import { WorkflowPlaceholders } from '@/components/WorkflowPlaceholders';
 import AdminPage from '@/pages/AdminPage';
 import KategorienPage from '@/pages/KategorienPage';
 import WerkzeugbestandPage from '@/pages/WerkzeugbestandPage';
@@ -19,6 +18,8 @@ import PublicFormVermietung from '@/pages/public/PublicForm_Vermietung';
 // <public:imports>
 // </public:imports>
 // <custom:imports>
+const WerkzeugVermietenPage = lazy(() => import('@/pages/intents/WerkzeugVermietenPage'));
+const WerkzeugRueckgabePage = lazy(() => import('@/pages/intents/WerkzeugRueckgabePage'));
 // </custom:imports>
 
 export default function App() {
@@ -35,13 +36,15 @@ export default function App() {
               {/* <public:routes> */}
               {/* </public:routes> */}
               <Route element={<Layout />}>
-                <Route index element={<><div className="mb-8"><WorkflowPlaceholders /></div><DashboardOverview /></>} />
+                <Route index element={<DashboardOverview />} />
                 <Route path="kategorien" element={<KategorienPage />} />
                 <Route path="werkzeugbestand" element={<WerkzeugbestandPage />} />
                 <Route path="kunden" element={<KundenPage />} />
                 <Route path="vermietung" element={<VermietungPage />} />
                 <Route path="admin" element={<AdminPage />} />
                 {/* <custom:routes> */}
+                <Route path="intents/werkzeug-vermieten" element={<Suspense fallback={null}><WerkzeugVermietenPage /></Suspense>} />
+                <Route path="intents/werkzeug-rueckgabe" element={<Suspense fallback={null}><WerkzeugRueckgabePage /></Suspense>} />
                 {/* </custom:routes> */}
               </Route>
             </Routes>

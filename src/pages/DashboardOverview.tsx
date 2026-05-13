@@ -16,7 +16,7 @@ import { AI_PHOTO_SCAN, AI_PHOTO_LOCATION } from '@/config/ai-features';
 import {
   IconPlus, IconPencil, IconTrash, IconTool, IconUsers, IconCalendar,
   IconAlertCircle, IconRefresh, IconCheck, IconClock, IconArrowBack,
-  IconPackage, IconCircleCheck,
+  IconPackage, IconCircleCheck, IconChevronRight,
 } from '@tabler/icons-react';
 
 const APPGROUP_ID = '6a042a3e66f43a30b7777659';
@@ -83,6 +83,29 @@ export default function DashboardOverview() {
 
   return (
     <div className="space-y-6">
+      {/* Workflow-Navigation */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <a href="#/intents/werkzeug-vermieten" className="bg-card border border-border border-l-4 border-l-primary rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 no-underline">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <IconCalendar size={18} className="text-primary shrink-0" />
+              <span className="font-semibold text-sm text-foreground">Werkzeug vermieten</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Werkzeug auswählen, Kunde zuordnen, Mietdetails festlegen</p>
+          </div>
+          <IconChevronRight size={18} className="text-muted-foreground shrink-0" />
+        </a>
+        <a href="#/intents/werkzeug-rueckgabe" className="bg-card border border-border border-l-4 border-l-primary rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 no-underline">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <IconArrowBack size={18} className="text-primary shrink-0" />
+              <span className="font-semibold text-sm text-foreground">Werkzeug zurücknehmen</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Rückgabe erfassen, Zustand prüfen, Kaution abrechnen</p>
+          </div>
+          <IconChevronRight size={18} className="text-muted-foreground shrink-0" />
+        </a>
+      </div>
       {/* KPI-Leiste */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
