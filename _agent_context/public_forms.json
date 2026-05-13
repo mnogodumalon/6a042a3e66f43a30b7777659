@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "forms": [
+    {
+      "entity": "kategorien",
+      "app_id": "6a042a14a5334cc38646d8f7",
+      "path": "/rest/apps/6a042a14a5334cc38646d8f7/records",
+      "allowed_fields": [
+        "kategorie_name",
+        "kategorie_beschreibung"
+      ],
+      "pow": true,
+      "pow_difficulty": 50000,
+      "title": "Kategorien — Formular"
+    },
+    {
+      "entity": "werkzeugbestand",
+      "app_id": "6a042a1bb2c32790b48628b1",
+      "path": "/rest/apps/6a042a1bb2c32790b48628b1/records",
+      "allowed_fields": [
+        "bezeichnung",
+        "inventarnummer",
+        "hersteller",
+        "modell",
+        "seriennummer",
+        "anschaffungsdatum",
+        "anschaffungspreis",
+        "zustand",
+        "standort",
+        "vermietbar",
+        "tagesmietpreis",
+        "kaution_betrag",
+        "notizen"
+      ],
+      "pow": true,
+      "pow_difficulty": 50000,
+      "title": "Werkzeugbestand — Formular"
+    },
+    {
+      "entity": "kunden",
+      "app_id": "6a042a1ba7a8d8e74255c9ff",
+      "path": "/rest/apps/6a042a1ba7a8d8e74255c9ff/records",
+      "allowed_fields": [
+        "nachname",
+        "vorname",
+        "firma",
+        "strasse",
+        "hausnummer",
+        "plz",
+        "ort",
+        "telefon",
+        "email",
+        "kunden_notizen"
+      ],
+      "pow": true,
+      "pow_difficulty": 50000,
+      "title": "Kunden — Formular"
+    },
+    {
+      "entity": "vermietung",
+      "app_id": "6a042a1c8096b95d0d74862a",
+      "path": "/rest/apps/6a042a1c8096b95d0d74862a/records",
+      "allowed_fields": [
+        "mietbeginn",
+        "mietende_geplant",
+        "mietdauer_tage",
+        "mietpreis_gesamt",
+        "kaution_erhoben",
+        "kaution_zurueck",
+        "rueckgabedatum",
+        "zustand_rueckgabe",
+        "status",
+        "bemerkungen"
+      ],
+      "pow": true,
+      "pow_difficulty": 50000,
+      "title": "Vermietung — Formular"
+    }
+  ]
+}
