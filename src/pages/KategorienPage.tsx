@@ -168,6 +168,7 @@ export default function KategorienPage() {
         onClose={() => { setDialogOpen(false); setEditingRecord(null); }}
         onSubmit={editingRecord ? handleUpdate : handleCreate}
         defaultValues={editingRecord?.fields}
+        recordId={editingRecord?.record_id}
         enablePhotoScan={AI_PHOTO_SCAN['Kategorien']}
         enablePhotoLocation={AI_PHOTO_LOCATION['Kategorien']}
       />

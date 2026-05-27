@@ -267,6 +267,7 @@ export default function VermietungPage() {
         onClose={() => { setDialogOpen(false); setEditingRecord(null); }}
         onSubmit={editingRecord ? handleUpdate : handleCreate}
         defaultValues={editingRecord?.fields}
+        recordId={editingRecord?.record_id}
         werkzeugbestandList={werkzeugbestandList}
         kundenList={kundenList}
         enablePhotoScan={AI_PHOTO_SCAN['Vermietung']}

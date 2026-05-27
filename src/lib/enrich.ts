@@ -12,20 +12,6 @@ function resolveDisplay(url: unknown, map: Map<string, any>, ...fields: string[]
   return fields.map(f => String(r.fields[f] ?? '')).join(' ').trim();
 }
 
-interface WerkzeugbestandMaps {
-  kategorienMap: Map<string, Kategorien>;
-}
-
-export function enrichWerkzeugbestand(
-  werkzeugbestand: Werkzeugbestand[],
-  maps: WerkzeugbestandMaps
-): EnrichedWerkzeugbestand[] {
-  return werkzeugbestand.map(r => ({
-    ...r,
-    kategorieName: resolveDisplay(r.fields.kategorie, maps.kategorienMap, 'kategorie_name'),
-  }));
-}
-
 interface VermietungMaps {
   werkzeugbestandMap: Map<string, Werkzeugbestand>;
   kundenMap: Map<string, Kunden>;
@@ -39,5 +25,19 @@ export function enrichVermietung(
     ...r,
     werkzeugName: resolveDisplay(r.fields.werkzeug, maps.werkzeugbestandMap, 'bezeichnung'),
     kundeName: resolveDisplay(r.fields.kunde, maps.kundenMap, 'vorname', 'nachname'),
+  }));
+}
+
+interface WerkzeugbestandMaps {
+  kategorienMap: Map<string, Kategorien>;
+}
+
+export function enrichWerkzeugbestand(
+  werkzeugbestand: Werkzeugbestand[],
+  maps: WerkzeugbestandMaps
+): EnrichedWerkzeugbestand[] {
+  return werkzeugbestand.map(r => ({
+    ...r,
+    kategorieName: resolveDisplay(r.fields.kategorie, maps.kategorienMap, 'kategorie_name'),
   }));
 }

@@ -6,6 +6,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { APP_IDS } from '@/types/app';
+import { AttachmentsSection } from '@/components/AttachmentsSection';
 import { Badge } from '@/components/ui/badge';
 import { IconPencil } from '@tabler/icons-react';
 import { format, parseISO } from 'date-fns';
@@ -105,6 +107,9 @@ export function VermietungViewDialog({ open, onClose, record, onEdit, werkzeugbe
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Bemerkungen</Label>
             <p className="text-sm whitespace-pre-wrap">{record.fields.bemerkungen ?? '—'}</p>
+          </div>
+          <div className="pt-2 border-t border-border">
+            <AttachmentsSection appId={APP_IDS.VERMIETUNG} recordId={record.record_id} readOnly />
           </div>
         </div>
       </DialogContent>

@@ -1,28 +1,28 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Kategorien, Werkzeugbestand, Kunden, Vermietung } from '@/types/app';
+import type { Kunden, Vermietung, Kategorien, Werkzeugbestand } from '@/types/app';
 import { LivingAppsService } from '@/services/livingAppsService';
 
 export function useDashboardData() {
-  const [kategorien, setKategorien] = useState<Kategorien[]>([]);
-  const [werkzeugbestand, setWerkzeugbestand] = useState<Werkzeugbestand[]>([]);
   const [kunden, setKunden] = useState<Kunden[]>([]);
   const [vermietung, setVermietung] = useState<Vermietung[]>([]);
+  const [kategorien, setKategorien] = useState<Kategorien[]>([]);
+  const [werkzeugbestand, setWerkzeugbestand] = useState<Werkzeugbestand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchAll = useCallback(async () => {
     setError(null);
     try {
-      const [kategorienData, werkzeugbestandData, kundenData, vermietungData] = await Promise.all([
-        LivingAppsService.getKategorien(),
-        LivingAppsService.getWerkzeugbestand(),
+      const [kundenData, vermietungData, kategorienData, werkzeugbestandData] = await Promise.all([
         LivingAppsService.getKunden(),
         LivingAppsService.getVermietung(),
+        LivingAppsService.getKategorien(),
+        LivingAppsService.getWerkzeugbestand(),
       ]);
-      setKategorien(kategorienData);
-      setWerkzeugbestand(werkzeugbestandData);
       setKunden(kundenData);
       setVermietung(vermietungData);
+      setKategorien(kategorienData);
+      setWerkzeugbestand(werkzeugbestandData);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Fehler beim Laden der Daten'));
     } finally {
@@ -36,16 +36,16 @@ export function useDashboardData() {
   useEffect(() => {
     async function silentRefresh() {
       try {
-        const [kategorienData, werkzeugbestandData, kundenData, vermietungData] = await Promise.all([
-          LivingAppsService.getKategorien(),
-          LivingAppsService.getWerkzeugbestand(),
+        const [kundenData, vermietungData, kategorienData, werkzeugbestandData] = await Promise.all([
           LivingAppsService.getKunden(),
           LivingAppsService.getVermietung(),
+          LivingAppsService.getKategorien(),
+          LivingAppsService.getWerkzeugbestand(),
         ]);
-        setKategorien(kategorienData);
-        setWerkzeugbestand(werkzeugbestandData);
         setKunden(kundenData);
         setVermietung(vermietungData);
+        setKategorien(kategorienData);
+        setWerkzeugbestand(werkzeugbestandData);
       } catch {
         // silently ignore — stale data is better than no data
       }
@@ -54,6 +54,12 @@ export function useDashboardData() {
     window.addEventListener('dashboard-refresh', handleRefresh);
     return () => window.removeEventListener('dashboard-refresh', handleRefresh);
   }, []);
+
+  const kundenMap = useMemo(() => {
+    const m = new Map<string, Kunden>();
+    kunden.forEach(r => m.set(r.record_id, r));
+    return m;
+  }, [kunden]);
 
   const kategorienMap = useMemo(() => {
     const m = new Map<string, Kategorien>();
@@ -67,11 +73,5 @@ export function useDashboardData() {
     return m;
   }, [werkzeugbestand]);
 
-  const kundenMap = useMemo(() => {
-    const m = new Map<string, Kunden>();
-    kunden.forEach(r => m.set(r.record_id, r));
-    return m;
-  }, [kunden]);
-
-  return { kategorien, setKategorien, werkzeugbestand, setWerkzeugbestand, kunden, setKunden, vermietung, setVermietung, loading, error, fetchAll, kategorienMap, werkzeugbestandMap, kundenMap };
+  return { kunden, setKunden, vermietung, setVermietung, kategorien, setKategorien, werkzeugbestand, setWerkzeugbestand, loading, error, fetchAll, kundenMap, kategorienMap, werkzeugbestandMap };
 }

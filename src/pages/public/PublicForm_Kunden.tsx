@@ -126,6 +126,7 @@ export default function PublicFormKunden() {
             <Label htmlFor="nachname">Nachname</Label>
             <Input
               id="nachname"
+              placeholder=""
               value={fields.nachname ?? ''}
               onChange={e => setFields(f => ({ ...f, nachname: e.target.value }))}
             />
@@ -134,6 +135,7 @@ export default function PublicFormKunden() {
             <Label htmlFor="vorname">Vorname</Label>
             <Input
               id="vorname"
+              placeholder=""
               value={fields.vorname ?? ''}
               onChange={e => setFields(f => ({ ...f, vorname: e.target.value }))}
             />
@@ -142,6 +144,7 @@ export default function PublicFormKunden() {
             <Label htmlFor="firma">Firma / Organisation</Label>
             <Input
               id="firma"
+              placeholder=""
               value={fields.firma ?? ''}
               onChange={e => setFields(f => ({ ...f, firma: e.target.value }))}
             />
@@ -150,6 +153,7 @@ export default function PublicFormKunden() {
             <Label htmlFor="strasse">Strasse</Label>
             <Input
               id="strasse"
+              placeholder=""
               value={fields.strasse ?? ''}
               onChange={e => setFields(f => ({ ...f, strasse: e.target.value }))}
             />
@@ -158,6 +162,7 @@ export default function PublicFormKunden() {
             <Label htmlFor="hausnummer">Hausnummer</Label>
             <Input
               id="hausnummer"
+              placeholder=""
               value={fields.hausnummer ?? ''}
               onChange={e => setFields(f => ({ ...f, hausnummer: e.target.value }))}
             />
@@ -166,6 +171,7 @@ export default function PublicFormKunden() {
             <Label htmlFor="plz">Postleitzahl</Label>
             <Input
               id="plz"
+              placeholder=""
               value={fields.plz ?? ''}
               onChange={e => setFields(f => ({ ...f, plz: e.target.value }))}
             />
@@ -174,6 +180,7 @@ export default function PublicFormKunden() {
             <Label htmlFor="ort">Ort</Label>
             <Input
               id="ort"
+              placeholder=""
               value={fields.ort ?? ''}
               onChange={e => setFields(f => ({ ...f, ort: e.target.value }))}
             />
@@ -191,6 +198,7 @@ export default function PublicFormKunden() {
             <Input
               id="email"
               type="email"
+              placeholder=""
               value={fields.email ?? ''}
               onChange={e => setFields(f => ({ ...f, email: e.target.value }))}
             />
@@ -199,6 +207,7 @@ export default function PublicFormKunden() {
             <Label htmlFor="kunden_notizen">Notizen</Label>
             <Textarea
               id="kunden_notizen"
+              placeholder=""
               value={fields.kunden_notizen ?? ''}
               onChange={e => setFields(f => ({ ...f, kunden_notizen: e.target.value }))}
               rows={3}

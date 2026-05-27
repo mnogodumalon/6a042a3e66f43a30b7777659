@@ -1,15 +1,15 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useDashboardData } from '@/hooks/useDashboardData';
-import type { Kategorien, Werkzeugbestand, Kunden, Vermietung } from '@/types/app';
+import type { Kunden, Vermietung, Kategorien, Werkzeugbestand } from '@/types/app';
 import { LivingAppsService, extractRecordId, cleanFieldsForApi } from '@/services/livingAppsService';
-import { KategorienDialog } from '@/components/dialogs/KategorienDialog';
-import { KategorienViewDialog } from '@/components/dialogs/KategorienViewDialog';
-import { WerkzeugbestandDialog } from '@/components/dialogs/WerkzeugbestandDialog';
-import { WerkzeugbestandViewDialog } from '@/components/dialogs/WerkzeugbestandViewDialog';
 import { KundenDialog } from '@/components/dialogs/KundenDialog';
 import { KundenViewDialog } from '@/components/dialogs/KundenViewDialog';
 import { VermietungDialog } from '@/components/dialogs/VermietungDialog';
 import { VermietungViewDialog } from '@/components/dialogs/VermietungViewDialog';
+import { KategorienDialog } from '@/components/dialogs/KategorienDialog';
+import { KategorienViewDialog } from '@/components/dialogs/KategorienViewDialog';
+import { WerkzeugbestandDialog } from '@/components/dialogs/WerkzeugbestandDialog';
+import { WerkzeugbestandViewDialog } from '@/components/dialogs/WerkzeugbestandViewDialog';
 import { BulkEditDialog } from '@/components/dialogs/BulkEditDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageShell } from '@/components/PageShell';
@@ -36,27 +36,6 @@ function fmtDate(d?: string) {
 }
 
 // Field metadata per entity for bulk edit and column filters
-const KATEGORIEN_FIELDS = [
-  { key: 'kategorie_name', label: 'Kategoriename', type: 'string/text' },
-  { key: 'kategorie_beschreibung', label: 'Beschreibung', type: 'string/textarea' },
-];
-const WERKZEUGBESTAND_FIELDS = [
-  { key: 'bezeichnung', label: 'Bezeichnung', type: 'string/text' },
-  { key: 'inventarnummer', label: 'Inventarnummer', type: 'string/text' },
-  { key: 'kategorie', label: 'Kategorie', type: 'applookup/select', targetEntity: 'kategorien', targetAppId: 'KATEGORIEN', displayField: 'kategorie_name' },
-  { key: 'hersteller', label: 'Hersteller', type: 'string/text' },
-  { key: 'modell', label: 'Modell', type: 'string/text' },
-  { key: 'seriennummer', label: 'Seriennummer', type: 'string/text' },
-  { key: 'anschaffungsdatum', label: 'Anschaffungsdatum', type: 'date/date' },
-  { key: 'anschaffungspreis', label: 'Anschaffungspreis (EUR)', type: 'number' },
-  { key: 'zustand', label: 'Zustand', type: 'lookup/select', options: [{ key: 'neu', label: 'Neu' }, { key: 'gut', label: 'Gut' }, { key: 'gebraucht', label: 'Gebraucht' }, { key: 'reparaturbeduerftig', label: 'Reparaturbeduerftig' }, { key: 'ausser_betrieb', label: 'Ausser Betrieb' }] },
-  { key: 'standort', label: 'Standort / Lagerort', type: 'string/text' },
-  { key: 'vermietbar', label: 'Zur Vermietung verfuegbar', type: 'bool' },
-  { key: 'tagesmietpreis', label: 'Tagesmietpreis (EUR)', type: 'number' },
-  { key: 'kaution_betrag', label: 'Kautionsbetrag (EUR)', type: 'number' },
-  { key: 'foto', label: 'Foto des Werkzeugs', type: 'file' },
-  { key: 'notizen', label: 'Notizen', type: 'string/textarea' },
-];
 const KUNDEN_FIELDS = [
   { key: 'nachname', label: 'Nachname', type: 'string/text' },
   { key: 'vorname', label: 'Vorname', type: 'string/text' },
@@ -83,12 +62,33 @@ const VERMIETUNG_FIELDS = [
   { key: 'status', label: 'Status', type: 'lookup/select', options: [{ key: 'vermietet', label: 'Vermietet' }, { key: 'zurueckgegeben', label: 'Zurueckgegeben' }, { key: 'ueberfaellig', label: 'Ueberfaellig' }, { key: 'storniert', label: 'Storniert' }] },
   { key: 'bemerkungen', label: 'Bemerkungen', type: 'string/textarea' },
 ];
+const KATEGORIEN_FIELDS = [
+  { key: 'kategorie_name', label: 'Kategoriename', type: 'string/text' },
+  { key: 'kategorie_beschreibung', label: 'Beschreibung', type: 'string/textarea' },
+];
+const WERKZEUGBESTAND_FIELDS = [
+  { key: 'bezeichnung', label: 'Bezeichnung', type: 'string/text' },
+  { key: 'inventarnummer', label: 'Inventarnummer', type: 'string/text' },
+  { key: 'kategorie', label: 'Kategorie', type: 'applookup/select', targetEntity: 'kategorien', targetAppId: 'KATEGORIEN', displayField: 'kategorie_name' },
+  { key: 'hersteller', label: 'Hersteller', type: 'string/text' },
+  { key: 'modell', label: 'Modell', type: 'string/text' },
+  { key: 'seriennummer', label: 'Seriennummer', type: 'string/text' },
+  { key: 'anschaffungsdatum', label: 'Anschaffungsdatum', type: 'date/date' },
+  { key: 'anschaffungspreis', label: 'Anschaffungspreis (EUR)', type: 'number' },
+  { key: 'zustand', label: 'Zustand', type: 'lookup/select', options: [{ key: 'neu', label: 'Neu' }, { key: 'gut', label: 'Gut' }, { key: 'gebraucht', label: 'Gebraucht' }, { key: 'reparaturbeduerftig', label: 'Reparaturbeduerftig' }, { key: 'ausser_betrieb', label: 'Ausser Betrieb' }] },
+  { key: 'standort', label: 'Standort / Lagerort', type: 'string/text' },
+  { key: 'vermietbar', label: 'Zur Vermietung verfuegbar', type: 'bool' },
+  { key: 'tagesmietpreis', label: 'Tagesmietpreis (EUR)', type: 'number' },
+  { key: 'kaution_betrag', label: 'Kautionsbetrag (EUR)', type: 'number' },
+  { key: 'foto', label: 'Foto des Werkzeugs', type: 'file' },
+  { key: 'notizen', label: 'Notizen', type: 'string/textarea' },
+];
 
 const ENTITY_TABS = [
-  { key: 'kategorien', label: 'Kategorien', pascal: 'Kategorien' },
-  { key: 'werkzeugbestand', label: 'Werkzeugbestand', pascal: 'Werkzeugbestand' },
   { key: 'kunden', label: 'Kunden', pascal: 'Kunden' },
   { key: 'vermietung', label: 'Vermietung', pascal: 'Vermietung' },
+  { key: 'kategorien', label: 'Kategorien', pascal: 'Kategorien' },
+  { key: 'werkzeugbestand', label: 'Werkzeugbestand', pascal: 'Werkzeugbestand' },
 ] as const;
 
 type EntityKey = typeof ENTITY_TABS[number]['key'];
@@ -97,18 +97,18 @@ export default function AdminPage() {
   const data = useDashboardData();
   const { loading, error, fetchAll } = data;
 
-  const [activeTab, setActiveTab] = useState<EntityKey>('kategorien');
+  const [activeTab, setActiveTab] = useState<EntityKey>('kunden');
   const [selectedIds, setSelectedIds] = useState<Record<EntityKey, Set<string>>>(() => ({
-    'kategorien': new Set(),
-    'werkzeugbestand': new Set(),
     'kunden': new Set(),
     'vermietung': new Set(),
+    'kategorien': new Set(),
+    'werkzeugbestand': new Set(),
   }));
   const [filters, setFilters] = useState<Record<EntityKey, Record<string, string>>>(() => ({
-    'kategorien': {},
-    'werkzeugbestand': {},
     'kunden': {},
     'vermietung': {},
+    'kategorien': {},
+    'werkzeugbestand': {},
   }));
   const [showFilters, setShowFilters] = useState(false);
   const [dialogState, setDialogState] = useState<{ entity: EntityKey; record: any } | null>(null);
@@ -123,10 +123,10 @@ export default function AdminPage() {
 
   const getRecords = useCallback((entity: EntityKey) => {
     switch (entity) {
-      case 'kategorien': return (data as any).kategorien as Kategorien[] ?? [];
-      case 'werkzeugbestand': return (data as any).werkzeugbestand as Werkzeugbestand[] ?? [];
       case 'kunden': return (data as any).kunden as Kunden[] ?? [];
       case 'vermietung': return (data as any).vermietung as Vermietung[] ?? [];
+      case 'kategorien': return (data as any).kategorien as Kategorien[] ?? [];
+      case 'werkzeugbestand': return (data as any).werkzeugbestand as Werkzeugbestand[] ?? [];
       default: return [];
     }
   }, [data]);
@@ -134,12 +134,12 @@ export default function AdminPage() {
   const getLookupLists = useCallback((entity: EntityKey) => {
     const lists: Record<string, any[]> = {};
     switch (entity) {
-      case 'werkzeugbestand':
-        lists.kategorienList = (data as any).kategorien ?? [];
-        break;
       case 'vermietung':
         lists.werkzeugbestandList = (data as any).werkzeugbestand ?? [];
         lists.kundenList = (data as any).kunden ?? [];
+        break;
+      case 'werkzeugbestand':
+        lists.kategorienList = (data as any).kategorien ?? [];
         break;
     }
     return lists;
@@ -151,10 +151,6 @@ export default function AdminPage() {
     if (!id) return '—';
     const lists = getLookupLists(entity);
     void fieldKey; // ensure used for noUnusedParameters
-    if (entity === 'werkzeugbestand' && fieldKey === 'kategorie') {
-      const match = (lists.kategorienList ?? []).find((r: any) => r.record_id === id);
-      return match?.fields.kategorie_name ?? '—';
-    }
     if (entity === 'vermietung' && fieldKey === 'werkzeug') {
       const match = (lists.werkzeugbestandList ?? []).find((r: any) => r.record_id === id);
       return match?.fields.bezeichnung ?? '—';
@@ -163,15 +159,19 @@ export default function AdminPage() {
       const match = (lists.kundenList ?? []).find((r: any) => r.record_id === id);
       return match?.fields.nachname ?? '—';
     }
+    if (entity === 'werkzeugbestand' && fieldKey === 'kategorie') {
+      const match = (lists.kategorienList ?? []).find((r: any) => r.record_id === id);
+      return match?.fields.kategorie_name ?? '—';
+    }
     return String(url);
   }, [getLookupLists]);
 
   const getFieldMeta = useCallback((entity: EntityKey) => {
     switch (entity) {
-      case 'kategorien': return KATEGORIEN_FIELDS;
-      case 'werkzeugbestand': return WERKZEUGBESTAND_FIELDS;
       case 'kunden': return KUNDEN_FIELDS;
       case 'vermietung': return VERMIETUNG_FIELDS;
+      case 'kategorien': return KATEGORIEN_FIELDS;
+      case 'werkzeugbestand': return WERKZEUGBESTAND_FIELDS;
       default: return [];
     }
   }, []);
@@ -266,16 +266,6 @@ export default function AdminPage() {
 
   const getServiceMethods = useCallback((entity: EntityKey) => {
     switch (entity) {
-      case 'kategorien': return {
-        create: (fields: any) => LivingAppsService.createKategorienEntry(fields),
-        update: (id: string, fields: any) => LivingAppsService.updateKategorienEntry(id, fields),
-        remove: (id: string) => LivingAppsService.deleteKategorienEntry(id),
-      };
-      case 'werkzeugbestand': return {
-        create: (fields: any) => LivingAppsService.createWerkzeugbestandEntry(fields),
-        update: (id: string, fields: any) => LivingAppsService.updateWerkzeugbestandEntry(id, fields),
-        remove: (id: string) => LivingAppsService.deleteWerkzeugbestandEntry(id),
-      };
       case 'kunden': return {
         create: (fields: any) => LivingAppsService.createKundenEntry(fields),
         update: (id: string, fields: any) => LivingAppsService.updateKundenEntry(id, fields),
@@ -285,6 +275,16 @@ export default function AdminPage() {
         create: (fields: any) => LivingAppsService.createVermietungEntry(fields),
         update: (id: string, fields: any) => LivingAppsService.updateVermietungEntry(id, fields),
         remove: (id: string) => LivingAppsService.deleteVermietungEntry(id),
+      };
+      case 'kategorien': return {
+        create: (fields: any) => LivingAppsService.createKategorienEntry(fields),
+        update: (id: string, fields: any) => LivingAppsService.updateKategorienEntry(id, fields),
+        remove: (id: string) => LivingAppsService.deleteKategorienEntry(id),
+      };
+      case 'werkzeugbestand': return {
+        create: (fields: any) => LivingAppsService.createWerkzeugbestandEntry(fields),
+        update: (id: string, fields: any) => LivingAppsService.updateWerkzeugbestandEntry(id, fields),
+        remove: (id: string) => LivingAppsService.deleteWerkzeugbestandEntry(id),
       };
       default: return null;
     }
@@ -556,10 +556,23 @@ export default function AdminPage() {
                   if (fm.type === 'lookup/select' || fm.type === 'lookup/radio') {
                     return <TableCell key={fm.key}><span className="inline-flex items-center bg-secondary border border-[#bfdbfe] text-[#2563eb] rounded-[10px] px-2 py-1 text-sm font-medium">{val?.label ?? '—'}</span></TableCell>;
                   }
-                  if (fm.type.includes('multiplelookup')) {
+                  if (fm.type.startsWith('multiplelookup')) {
                     return <TableCell key={fm.key}>{Array.isArray(val) ? val.map((v: any) => v?.label ?? v).join(', ') : '—'}</TableCell>;
                   }
-                  if (fm.type.includes('applookup')) {
+                  if (fm.type.startsWith('multipleapplookup')) {
+                    return (
+                      <TableCell key={fm.key}>
+                        {Array.isArray(val) && val.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {val.map((url: any, i: number) => (
+                              <span key={i} className="inline-flex items-center bg-secondary border border-[#bfdbfe] text-[#2563eb] rounded-[10px] px-2 py-1 text-sm font-medium">{getApplookupDisplay(activeTab, fm.key, url)}</span>
+                            ))}
+                          </div>
+                        ) : '—'}
+                      </TableCell>
+                    );
+                  }
+                  if (fm.type.startsWith('applookup')) {
                     return <TableCell key={fm.key}><span className="inline-flex items-center bg-secondary border border-[#bfdbfe] text-[#2563eb] rounded-[10px] px-2 py-1 text-sm font-medium">{getApplookupDisplay(activeTab, fm.key, val)}</span></TableCell>;
                   }
                   if (fm.type.includes('date')) {
@@ -613,27 +626,6 @@ export default function AdminPage() {
         </Table>
       </div>
 
-      {(createEntity === 'kategorien' || dialogState?.entity === 'kategorien') && (
-        <KategorienDialog
-          open={createEntity === 'kategorien' || dialogState?.entity === 'kategorien'}
-          onClose={() => { setCreateEntity(null); setDialogState(null); }}
-          onSubmit={dialogState?.entity === 'kategorien' ? handleUpdate : (fields: any) => handleCreate('kategorien', fields)}
-          defaultValues={dialogState?.entity === 'kategorien' ? dialogState.record?.fields : undefined}
-          enablePhotoScan={AI_PHOTO_SCAN['Kategorien']}
-          enablePhotoLocation={AI_PHOTO_LOCATION['Kategorien']}
-        />
-      )}
-      {(createEntity === 'werkzeugbestand' || dialogState?.entity === 'werkzeugbestand') && (
-        <WerkzeugbestandDialog
-          open={createEntity === 'werkzeugbestand' || dialogState?.entity === 'werkzeugbestand'}
-          onClose={() => { setCreateEntity(null); setDialogState(null); }}
-          onSubmit={dialogState?.entity === 'werkzeugbestand' ? handleUpdate : (fields: any) => handleCreate('werkzeugbestand', fields)}
-          defaultValues={dialogState?.entity === 'werkzeugbestand' ? dialogState.record?.fields : undefined}
-          kategorienList={(data as any).kategorien ?? []}
-          enablePhotoScan={AI_PHOTO_SCAN['Werkzeugbestand']}
-          enablePhotoLocation={AI_PHOTO_LOCATION['Werkzeugbestand']}
-        />
-      )}
       {(createEntity === 'kunden' || dialogState?.entity === 'kunden') && (
         <KundenDialog
           open={createEntity === 'kunden' || dialogState?.entity === 'kunden'}
@@ -656,21 +648,25 @@ export default function AdminPage() {
           enablePhotoLocation={AI_PHOTO_LOCATION['Vermietung']}
         />
       )}
-      {viewState?.entity === 'kategorien' && (
-        <KategorienViewDialog
-          open={viewState?.entity === 'kategorien'}
-          onClose={() => setViewState(null)}
-          record={viewState?.record}
-          onEdit={(r: any) => { setViewState(null); setDialogState({ entity: 'kategorien', record: r }); }}
+      {(createEntity === 'kategorien' || dialogState?.entity === 'kategorien') && (
+        <KategorienDialog
+          open={createEntity === 'kategorien' || dialogState?.entity === 'kategorien'}
+          onClose={() => { setCreateEntity(null); setDialogState(null); }}
+          onSubmit={dialogState?.entity === 'kategorien' ? handleUpdate : (fields: any) => handleCreate('kategorien', fields)}
+          defaultValues={dialogState?.entity === 'kategorien' ? dialogState.record?.fields : undefined}
+          enablePhotoScan={AI_PHOTO_SCAN['Kategorien']}
+          enablePhotoLocation={AI_PHOTO_LOCATION['Kategorien']}
         />
       )}
-      {viewState?.entity === 'werkzeugbestand' && (
-        <WerkzeugbestandViewDialog
-          open={viewState?.entity === 'werkzeugbestand'}
-          onClose={() => setViewState(null)}
-          record={viewState?.record}
-          onEdit={(r: any) => { setViewState(null); setDialogState({ entity: 'werkzeugbestand', record: r }); }}
+      {(createEntity === 'werkzeugbestand' || dialogState?.entity === 'werkzeugbestand') && (
+        <WerkzeugbestandDialog
+          open={createEntity === 'werkzeugbestand' || dialogState?.entity === 'werkzeugbestand'}
+          onClose={() => { setCreateEntity(null); setDialogState(null); }}
+          onSubmit={dialogState?.entity === 'werkzeugbestand' ? handleUpdate : (fields: any) => handleCreate('werkzeugbestand', fields)}
+          defaultValues={dialogState?.entity === 'werkzeugbestand' ? dialogState.record?.fields : undefined}
           kategorienList={(data as any).kategorien ?? []}
+          enablePhotoScan={AI_PHOTO_SCAN['Werkzeugbestand']}
+          enablePhotoLocation={AI_PHOTO_LOCATION['Werkzeugbestand']}
         />
       )}
       {viewState?.entity === 'kunden' && (
@@ -689,6 +685,23 @@ export default function AdminPage() {
           onEdit={(r: any) => { setViewState(null); setDialogState({ entity: 'vermietung', record: r }); }}
           werkzeugbestandList={(data as any).werkzeugbestand ?? []}
           kundenList={(data as any).kunden ?? []}
+        />
+      )}
+      {viewState?.entity === 'kategorien' && (
+        <KategorienViewDialog
+          open={viewState?.entity === 'kategorien'}
+          onClose={() => setViewState(null)}
+          record={viewState?.record}
+          onEdit={(r: any) => { setViewState(null); setDialogState({ entity: 'kategorien', record: r }); }}
+        />
+      )}
+      {viewState?.entity === 'werkzeugbestand' && (
+        <WerkzeugbestandViewDialog
+          open={viewState?.entity === 'werkzeugbestand'}
+          onClose={() => setViewState(null)}
+          record={viewState?.record}
+          onEdit={(r: any) => { setViewState(null); setDialogState({ entity: 'werkzeugbestand', record: r }); }}
+          kategorienList={(data as any).kategorien ?? []}
         />
       )}
 

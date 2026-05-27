@@ -393,6 +393,7 @@ export default function DashboardOverview() {
           fetchAll();
         }}
         defaultValues={werkzeugDialog.record?.fields}
+        recordId={werkzeugDialog.record?.record_id}
         kategorienList={kategorien}
         enablePhotoScan={AI_PHOTO_SCAN['Werkzeugbestand']}
         enablePhotoLocation={AI_PHOTO_LOCATION['Werkzeugbestand']}

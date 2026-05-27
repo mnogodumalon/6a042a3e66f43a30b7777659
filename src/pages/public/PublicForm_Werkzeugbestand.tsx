@@ -3,11 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DatePicker } from '@/components/DatePicker';
 import { lookupKey } from '@/lib/formatters';
 
 // Empty PROXY_BASE → relative URLs (dashboard and form-proxy share the domain).
@@ -132,6 +129,7 @@ export default function PublicFormWerkzeugbestand() {
             <Label htmlFor="bezeichnung">Bezeichnung</Label>
             <Input
               id="bezeichnung"
+              placeholder=""
               value={fields.bezeichnung ?? ''}
               onChange={e => setFields(f => ({ ...f, bezeichnung: e.target.value }))}
             />
@@ -140,6 +138,7 @@ export default function PublicFormWerkzeugbestand() {
             <Label htmlFor="inventarnummer">Inventarnummer</Label>
             <Input
               id="inventarnummer"
+              placeholder=""
               value={fields.inventarnummer ?? ''}
               onChange={e => setFields(f => ({ ...f, inventarnummer: e.target.value }))}
             />
@@ -148,6 +147,7 @@ export default function PublicFormWerkzeugbestand() {
             <Label htmlFor="hersteller">Hersteller</Label>
             <Input
               id="hersteller"
+              placeholder=""
               value={fields.hersteller ?? ''}
               onChange={e => setFields(f => ({ ...f, hersteller: e.target.value }))}
             />
@@ -156,6 +156,7 @@ export default function PublicFormWerkzeugbestand() {
             <Label htmlFor="modell">Modell</Label>
             <Input
               id="modell"
+              placeholder=""
               value={fields.modell ?? ''}
               onChange={e => setFields(f => ({ ...f, modell: e.target.value }))}
             />
@@ -164,17 +165,19 @@ export default function PublicFormWerkzeugbestand() {
             <Label htmlFor="seriennummer">Seriennummer</Label>
             <Input
               id="seriennummer"
+              placeholder=""
               value={fields.seriennummer ?? ''}
               onChange={e => setFields(f => ({ ...f, seriennummer: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="anschaffungsdatum">Anschaffungsdatum</Label>
-            <Input
+            <DatePicker
               id="anschaffungsdatum"
-              type="date"
-              value={fields.anschaffungsdatum ?? ''}
-              onChange={e => setFields(f => ({ ...f, anschaffungsdatum: e.target.value }))}
+              placeholder=""
+              mode="date"
+              value={fields.anschaffungsdatum ?? null}
+              onChange={v => setFields(f => ({ ...f, anschaffungsdatum: v ?? undefined }))}
             />
           </div>
           <div className="space-y-2">
@@ -182,31 +185,88 @@ export default function PublicFormWerkzeugbestand() {
             <Input
               id="anschaffungspreis"
               type="number"
+              step="any"
+              min={0}
+              placeholder=""
               value={fields.anschaffungspreis ?? ''}
-              onChange={e => setFields(f => ({ ...f, anschaffungspreis: e.target.value ? Number(e.target.value) : undefined }))}
+              onChange={e => { const n = e.target.value ? Math.max(0, Number(e.target.value)) : undefined; setFields(f => ({ ...f, anschaffungspreis: n })); }}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="zustand">Zustand</Label>
-            <Select
-              value={lookupKey(fields.zustand) ?? 'none'}
-              onValueChange={v => setFields(f => ({ ...f, zustand: v === 'none' ? undefined : v as any }))}
-            >
-              <SelectTrigger id="zustand"><SelectValue placeholder="Auswählen..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">—</SelectItem>
-                <SelectItem value="neu">Neu</SelectItem>
-                <SelectItem value="gut">Gut</SelectItem>
-                <SelectItem value="gebraucht">Gebraucht</SelectItem>
-                <SelectItem value="reparaturbeduerftig">Reparaturbeduerftig</SelectItem>
-                <SelectItem value="ausser_betrieb">Ausser Betrieb</SelectItem>
-              </SelectContent>
-            </Select>
+            <div role="radiogroup" className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand) === 'neu'}
+                onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'neu' ? undefined : 'neu') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand) === 'neu'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Neu
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand) === 'gut'}
+                onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'gut' ? undefined : 'gut') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand) === 'gut'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Gut
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand) === 'gebraucht'}
+                onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'gebraucht' ? undefined : 'gebraucht') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand) === 'gebraucht'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Gebraucht
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand) === 'reparaturbeduerftig'}
+                onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'reparaturbeduerftig' ? undefined : 'reparaturbeduerftig') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand) === 'reparaturbeduerftig'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Reparaturbeduerftig
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand) === 'ausser_betrieb'}
+                onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'ausser_betrieb' ? undefined : 'ausser_betrieb') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand) === 'ausser_betrieb'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Ausser Betrieb
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="standort">Standort / Lagerort</Label>
             <Input
               id="standort"
+              placeholder=""
               value={fields.standort ?? ''}
               onChange={e => setFields(f => ({ ...f, standort: e.target.value }))}
             />
@@ -227,8 +287,11 @@ export default function PublicFormWerkzeugbestand() {
             <Input
               id="tagesmietpreis"
               type="number"
+              step="any"
+              min={0}
+              placeholder=""
               value={fields.tagesmietpreis ?? ''}
-              onChange={e => setFields(f => ({ ...f, tagesmietpreis: e.target.value ? Number(e.target.value) : undefined }))}
+              onChange={e => { const n = e.target.value ? Math.max(0, Number(e.target.value)) : undefined; setFields(f => ({ ...f, tagesmietpreis: n })); }}
             />
           </div>
           <div className="space-y-2">
@@ -236,14 +299,18 @@ export default function PublicFormWerkzeugbestand() {
             <Input
               id="kaution_betrag"
               type="number"
+              step="any"
+              min={0}
+              placeholder=""
               value={fields.kaution_betrag ?? ''}
-              onChange={e => setFields(f => ({ ...f, kaution_betrag: e.target.value ? Number(e.target.value) : undefined }))}
+              onChange={e => { const n = e.target.value ? Math.max(0, Number(e.target.value)) : undefined; setFields(f => ({ ...f, kaution_betrag: n })); }}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="notizen">Notizen</Label>
             <Textarea
               id="notizen"
+              placeholder=""
               value={fields.notizen ?? ''}
               onChange={e => setFields(f => ({ ...f, notizen: e.target.value }))}
               rows={3}

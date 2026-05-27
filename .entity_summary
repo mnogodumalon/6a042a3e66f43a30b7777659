@@ -1,7 +1,0 @@
-- Kategorien (kategorien): kategorie_name[string/text], kategorie_beschreibung[string/textarea]
-- Werkzeugbestand (werkzeugbestand): bezeichnung[string/text], inventarnummer[string/text], kategorie[applookup/select], hersteller[string/text], modell[string/text], seriennummer[string/text], anschaffungsdatum[date/date], anschaffungspreis[number], zustand[lookup/select], standort[string/text], vermietbar[bool], tagesmietpreis[number], kaution_betrag[number], foto[file], notizen[string/textarea]
-  → kategorie links to app_id 6a042a14a5334cc38646d8f7
-- Kunden (kunden): nachname[string/text], vorname[string/text], firma[string/text], strasse[string/text], hausnummer[string/text], plz[string/text], ort[string/text], telefon[string/tel], email[string/email], kunden_notizen[string/textarea]
-- Vermietung (vermietung): werkzeug[applookup/select], kunde[applookup/select], mietbeginn[date/datetimeminute], mietende_geplant[date/datetimeminute], mietdauer_tage[number], mietpreis_gesamt[number], kaution_erhoben[number], kaution_zurueck[bool], rueckgabedatum[date/datetimeminute], zustand_rueckgabe[lookup/select], status[lookup/select], bemerkungen[string/textarea]
-  → werkzeug links to app_id 6a042a1bb2c32790b48628b1
-  → kunde links to app_id 6a042a1ba7a8d8e74255c9ff

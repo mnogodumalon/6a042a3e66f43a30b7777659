@@ -3,11 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DatePicker } from '@/components/DatePicker';
 import { lookupKey } from '@/lib/formatters';
 
 // Empty PROXY_BASE → relative URLs (dashboard and form-proxy share the domain).
@@ -130,22 +127,22 @@ export default function PublicFormVermietung() {
         <form onSubmit={handleSubmit} className="space-y-5 bg-card rounded-xl border border-border p-6 shadow-md">
           <div className="space-y-2">
             <Label htmlFor="mietbeginn">Mietbeginn</Label>
-            <Input
+            <DatePicker
               id="mietbeginn"
-              type="datetime-local"
-              step="60"
-              value={fields.mietbeginn ?? ''}
-              onChange={e => setFields(f => ({ ...f, mietbeginn: e.target.value }))}
+              placeholder=""
+              mode="datetime"
+              value={fields.mietbeginn ?? null}
+              onChange={v => setFields(f => ({ ...f, mietbeginn: v ?? undefined }))}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="mietende_geplant">Geplantes Mietende</Label>
-            <Input
+            <DatePicker
               id="mietende_geplant"
-              type="datetime-local"
-              step="60"
-              value={fields.mietende_geplant ?? ''}
-              onChange={e => setFields(f => ({ ...f, mietende_geplant: e.target.value }))}
+              placeholder=""
+              mode="datetime"
+              value={fields.mietende_geplant ?? null}
+              onChange={v => setFields(f => ({ ...f, mietende_geplant: v ?? undefined }))}
             />
           </div>
           <div className="space-y-2">
@@ -153,8 +150,11 @@ export default function PublicFormVermietung() {
             <Input
               id="mietdauer_tage"
               type="number"
+              step="any"
+              min={0}
+              placeholder=""
               value={fields.mietdauer_tage ?? ''}
-              onChange={e => setFields(f => ({ ...f, mietdauer_tage: e.target.value ? Number(e.target.value) : undefined }))}
+              onChange={e => { const n = e.target.value ? Math.max(0, Number(e.target.value)) : undefined; setFields(f => ({ ...f, mietdauer_tage: n })); }}
             />
           </div>
           <div className="space-y-2">
@@ -162,8 +162,11 @@ export default function PublicFormVermietung() {
             <Input
               id="mietpreis_gesamt"
               type="number"
+              step="any"
+              min={0}
+              placeholder=""
               value={fields.mietpreis_gesamt ?? ''}
-              onChange={e => setFields(f => ({ ...f, mietpreis_gesamt: e.target.value ? Number(e.target.value) : undefined }))}
+              onChange={e => { const n = e.target.value ? Math.max(0, Number(e.target.value)) : undefined; setFields(f => ({ ...f, mietpreis_gesamt: n })); }}
             />
           </div>
           <div className="space-y-2">
@@ -171,8 +174,11 @@ export default function PublicFormVermietung() {
             <Input
               id="kaution_erhoben"
               type="number"
+              step="any"
+              min={0}
+              placeholder=""
               value={fields.kaution_erhoben ?? ''}
-              onChange={e => setFields(f => ({ ...f, kaution_erhoben: e.target.value ? Number(e.target.value) : undefined }))}
+              onChange={e => { const n = e.target.value ? Math.max(0, Number(e.target.value)) : undefined; setFields(f => ({ ...f, kaution_erhoben: n })); }}
             />
           </div>
           <div className="space-y-2">
@@ -188,51 +194,146 @@ export default function PublicFormVermietung() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="rueckgabedatum">Tatsaechliches Rueckgabedatum</Label>
-            <Input
+            <DatePicker
               id="rueckgabedatum"
-              type="datetime-local"
-              step="60"
-              value={fields.rueckgabedatum ?? ''}
-              onChange={e => setFields(f => ({ ...f, rueckgabedatum: e.target.value }))}
+              placeholder=""
+              mode="datetime"
+              value={fields.rueckgabedatum ?? null}
+              onChange={v => setFields(f => ({ ...f, rueckgabedatum: v ?? undefined }))}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="zustand_rueckgabe">Zustand bei Rueckgabe</Label>
-            <Select
-              value={lookupKey(fields.zustand_rueckgabe) ?? 'none'}
-              onValueChange={v => setFields(f => ({ ...f, zustand_rueckgabe: v === 'none' ? undefined : v as any }))}
-            >
-              <SelectTrigger id="zustand_rueckgabe"><SelectValue placeholder="Auswählen..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">—</SelectItem>
-                <SelectItem value="einwandfrei">Einwandfrei</SelectItem>
-                <SelectItem value="leichte_spuren">Leichte Gebrauchsspuren</SelectItem>
-                <SelectItem value="starke_spuren">Starke Gebrauchsspuren</SelectItem>
-                <SelectItem value="beschaedigt">Beschaedigt</SelectItem>
-                <SelectItem value="defekt">Defekt</SelectItem>
-              </SelectContent>
-            </Select>
+            <div role="radiogroup" className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand_rueckgabe) === 'einwandfrei'}
+                onClick={() => setFields(f => ({ ...f, zustand_rueckgabe: (lookupKey(f.zustand_rueckgabe) === 'einwandfrei' ? undefined : 'einwandfrei') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand_rueckgabe) === 'einwandfrei'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Einwandfrei
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand_rueckgabe) === 'leichte_spuren'}
+                onClick={() => setFields(f => ({ ...f, zustand_rueckgabe: (lookupKey(f.zustand_rueckgabe) === 'leichte_spuren' ? undefined : 'leichte_spuren') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand_rueckgabe) === 'leichte_spuren'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Leichte Gebrauchsspuren
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand_rueckgabe) === 'starke_spuren'}
+                onClick={() => setFields(f => ({ ...f, zustand_rueckgabe: (lookupKey(f.zustand_rueckgabe) === 'starke_spuren' ? undefined : 'starke_spuren') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand_rueckgabe) === 'starke_spuren'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Starke Gebrauchsspuren
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand_rueckgabe) === 'beschaedigt'}
+                onClick={() => setFields(f => ({ ...f, zustand_rueckgabe: (lookupKey(f.zustand_rueckgabe) === 'beschaedigt' ? undefined : 'beschaedigt') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand_rueckgabe) === 'beschaedigt'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Beschaedigt
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.zustand_rueckgabe) === 'defekt'}
+                onClick={() => setFields(f => ({ ...f, zustand_rueckgabe: (lookupKey(f.zustand_rueckgabe) === 'defekt' ? undefined : 'defekt') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.zustand_rueckgabe) === 'defekt'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Defekt
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>
-            <Select
-              value={lookupKey(fields.status) ?? 'none'}
-              onValueChange={v => setFields(f => ({ ...f, status: v === 'none' ? undefined : v as any }))}
-            >
-              <SelectTrigger id="status"><SelectValue placeholder="Auswählen..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">—</SelectItem>
-                <SelectItem value="vermietet">Vermietet</SelectItem>
-                <SelectItem value="zurueckgegeben">Zurueckgegeben</SelectItem>
-                <SelectItem value="ueberfaellig">Ueberfaellig</SelectItem>
-                <SelectItem value="storniert">Storniert</SelectItem>
-              </SelectContent>
-            </Select>
+            <div role="radiogroup" className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.status) === 'vermietet'}
+                onClick={() => setFields(f => ({ ...f, status: (lookupKey(f.status) === 'vermietet' ? undefined : 'vermietet') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.status) === 'vermietet'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Vermietet
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.status) === 'zurueckgegeben'}
+                onClick={() => setFields(f => ({ ...f, status: (lookupKey(f.status) === 'zurueckgegeben' ? undefined : 'zurueckgegeben') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.status) === 'zurueckgegeben'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Zurueckgegeben
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.status) === 'ueberfaellig'}
+                onClick={() => setFields(f => ({ ...f, status: (lookupKey(f.status) === 'ueberfaellig' ? undefined : 'ueberfaellig') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.status) === 'ueberfaellig'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Ueberfaellig
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lookupKey(fields.status) === 'storniert'}
+                onClick={() => setFields(f => ({ ...f, status: (lookupKey(f.status) === 'storniert' ? undefined : 'storniert') as any }))}
+                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  lookupKey(fields.status) === 'storniert'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-background text-foreground border-input hover:bg-accent'
+                }`}
+              >
+                Storniert
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="bemerkungen">Bemerkungen</Label>
             <Textarea
               id="bemerkungen"
+              placeholder=""
               value={fields.bemerkungen ?? ''}
               onChange={e => setFields(f => ({ ...f, bemerkungen: e.target.value }))}
               rows={3}

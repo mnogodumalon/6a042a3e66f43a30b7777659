@@ -279,6 +279,7 @@ export default function WerkzeugbestandPage() {
         onClose={() => { setDialogOpen(false); setEditingRecord(null); }}
         onSubmit={editingRecord ? handleUpdate : handleCreate}
         defaultValues={editingRecord?.fields}
+        recordId={editingRecord?.record_id}
         kategorienList={kategorienList}
         enablePhotoScan={AI_PHOTO_SCAN['Werkzeugbestand']}
         enablePhotoLocation={AI_PHOTO_LOCATION['Werkzeugbestand']}

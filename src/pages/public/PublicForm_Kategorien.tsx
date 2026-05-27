@@ -126,6 +126,7 @@ export default function PublicFormKategorien() {
             <Label htmlFor="kategorie_name">Kategoriename</Label>
             <Input
               id="kategorie_name"
+              placeholder=""
               value={fields.kategorie_name ?? ''}
               onChange={e => setFields(f => ({ ...f, kategorie_name: e.target.value }))}
             />
@@ -134,6 +135,7 @@ export default function PublicFormKategorien() {
             <Label htmlFor="kategorie_beschreibung">Beschreibung</Label>
             <Textarea
               id="kategorie_beschreibung"
+              placeholder=""
               value={fields.kategorie_beschreibung ?? ''}
               onChange={e => setFields(f => ({ ...f, kategorie_beschreibung: e.target.value }))}
               rows={3}

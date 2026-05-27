@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Werkzeugbestand, Kategorien } from '@/types/app';
 import { APP_IDS } from '@/types/app';
-import { extractRecordId, createRecordUrl, cleanFieldsForApi, uploadFile, getUserProfile } from '@/services/livingAppsService';
+import { extractRecordId, createRecordUrl, cleanFieldsForApi, uploadFile, getUserProfile, LivingAppsService } from '@/services/livingAppsService';
 import {
   Dialog, DialogContent, DialogHeader,
   DialogTitle, DialogFooter,
@@ -9,13 +9,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { ComputedContext } from '@/config/form-enhancements/types';
+import { applyFieldOrder, flattenFieldOrder, applyDefaults, evalComputed, numberInputProps, clampNumberValue, classifyComputed, extractApplookupRefs, mergeApplookupRefs, resolveApplookupRef } from '@/config/form-enhancements/types';
+import { formEnhancements, computedDeps, computedApplookupRefs } from '@/config/form-enhancements/Werkzeugbestand';
+import { AttachmentsSection } from '@/components/AttachmentsSection';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from '@/components/Combobox';
+import { KategorienDialog } from '@/components/dialogs/KategorienDialog';
+import { DatePicker } from '@/components/DatePicker';
 import { Checkbox } from '@/components/ui/checkbox';
-import { IconArrowBigDownLinesFilled, IconCamera, IconCircleCheck, IconClipboard, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconUpload, IconX } from '@tabler/icons-react';
+import { IconCamera, IconChevronDown, IconCircleCheck, IconClipboard, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconUpload, IconX } from '@tabler/icons-react';
 import { fileToDataUri, extractFromInput, extractPhotoMeta, reverseGeocode, dataUriToBlob } from '@/lib/ai';
 import { lookupKey } from '@/lib/formatters';
 
@@ -24,14 +27,45 @@ interface WerkzeugbestandDialogProps {
   onClose: () => void;
   onSubmit: (fields: Werkzeugbestand['fields']) => Promise<void>;
   defaultValues?: Werkzeugbestand['fields'];
+  /** Record id when editing — enables the attachments section. Omit on create. */
+  recordId?: string;
   kategorienList: Kategorien[];
   enablePhotoScan?: boolean;
   enablePhotoLocation?: boolean;
 }
 
-export function WerkzeugbestandDialog({ open, onClose, onSubmit, defaultValues, kategorienList, enablePhotoScan = true, enablePhotoLocation = true }: WerkzeugbestandDialogProps) {
+export function WerkzeugbestandDialog({ open, onClose, onSubmit, defaultValues, recordId, kategorienList, enablePhotoScan = true, enablePhotoLocation = true }: WerkzeugbestandDialogProps) {
   const [fields, setFields] = useState<Partial<Werkzeugbestand['fields']>>({});
   const [saving, setSaving] = useState(false);
+  // Dirty-tracking: in edit-mode the Speichern button is disabled until the
+  // user actually changes something. JSON.stringify is good enough for our
+  // fields (plain values + LookupValue objects + string arrays).
+  const isDirty = useMemo(() => {
+    if (!defaultValues) return true;  // create-mode: always allow submit
+    try {
+      return JSON.stringify(fields) !== JSON.stringify(defaultValues);
+    } catch {
+      return true;
+    }
+  }, [fields, defaultValues]);
+  // Inline-Create state for "Kategorien" target. The dropdown's
+  // "+ Neuer …" option opens a sub-dialog; on submit we POST, add the new
+  // record to the local `extraKategorien` list, and select it in
+  // the originating Combobox via the captured `createKategorienField`.
+  const [createKategorienOpen, setCreateKategorienOpen] = useState(false);
+  const [createKategorienInitial, setCreateKategorienInitial] = useState('');
+  const [createKategorienField, setCreateKategorienField] = useState<string>('');
+  const [extraKategorien, setExtraKategorien] = useState< Kategorien[]>([]);
+  const kategorienListAll = useMemo(
+    () => [...kategorienList, ...extraKategorien],
+    [kategorienList, extraKategorien],
+  );
+  function openCreateKategorien(fieldKey: string, q: string) {
+    setCreateKategorienField(fieldKey);
+    setCreateKategorienInitial(q);
+    setCreateKategorienOpen(true);
+  }
+  const [aiOpen, setAiOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -46,9 +80,42 @@ export function WerkzeugbestandDialog({ open, onClose, onSubmit, defaultValues, 
   const [profileLoading, setProfileLoading] = useState(false);
   const [aiText, setAiText] = useState('');
 
+  // Computed-field plumbing. Pure no-op when formEnhancements.computed is {}.
+  // The number renderer uses computedValues only as a fallback when the user
+  // hasn't typed anything — clearing the input always restores the computation.
+  // computedContext exposes applookup list props so { kind: 'applookup', ... }
+  // operands can resolve to numeric fields on the target record.
+  const computedContext = useMemo<ComputedContext>(() => ({
+    lookupLists: {
+      'kategorie': kategorienList,
+    },
+  }), [kategorienList, ]);
+  const computedValues = useMemo<Record<string, number | null>>(() => {
+    let out: Record<string, number | null> = {};
+    const entries = Object.entries(formEnhancements.computed);
+    for (let i = 0; i < 5; i++) {
+      const merged: Record<string, unknown> = { ...(fields as Record<string, unknown>) };
+      for (const [k, v] of Object.entries(out)) {
+        if (v === null) continue;
+        const cur = merged[k];
+        if (cur === undefined || cur === null || cur === '') merged[k] = v;
+      }
+      const next: Record<string, number | null> = {};
+      let changed = false;
+      for (const [key, spec] of entries) {
+        const v = evalComputed(spec, merged, computedContext);
+        next[key] = v;
+        if (v !== out[key]) changed = true;
+      }
+      out = next;
+      if (!changed) break;
+    }
+    return out;
+  }, [fields, computedContext]);
+
   useEffect(() => {
     if (open) {
-      setFields(defaultValues ?? {});
+      setFields(applyDefaults((defaultValues ?? {}) as Record<string, unknown>, formEnhancements.defaults) as Partial<Werkzeugbestand['fields']>);
       setPreview(null);
       setScanSuccess(false);
       setAiText('');
@@ -75,7 +142,21 @@ export function WerkzeugbestandDialog({ open, onClose, onSubmit, defaultValues, 
     e.preventDefault();
     setSaving(true);
     try {
-      const clean = cleanFieldsForApi({ ...fields }, 'werkzeugbestand');
+      // Fill empty number slots from computed values; user-typed values always win.
+      // CRITICAL: only backend-mapped keys may be backfilled. Virtual computeds
+      // (sub-agent invents `_netto`, `_bestellung_gesamtbetrag` etc. for the
+      // "Berechnungen" display) have no backend counterpart — writing them
+      // triggers a 422 from the Living-Apps API ("field does not exist").
+      const merged = { ...fields };
+      for (const [key, val] of Object.entries(computedValues)) {
+        if (val === null) continue;
+        if (!backendFieldSet.has(key)) continue;
+        const cur = (merged as Record<string, unknown>)[key];
+        if (cur === undefined || cur === null || cur === '') {
+          (merged as Record<string, unknown>)[key] = val;
+        }
+      }
+      const clean = cleanFieldsForApi(merged, 'werkzeugbestand');
       await onSubmit(clean as Werkzeugbestand['fields']);
       onClose();
     } finally {
@@ -196,22 +277,414 @@ export function WerkzeugbestandDialog({ open, onClose, onSubmit, defaultValues, 
 
   const DIALOG_INTENT = defaultValues ? 'Werkzeugbestand bearbeiten' : 'Werkzeugbestand hinzufügen';
 
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{DIALOG_INTENT}</DialogTitle>
-        </DialogHeader>
-
-        {enablePhotoScan && (
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-            <div>
-              <div className="flex items-center gap-1.5 font-medium">
-                <IconSparkles className="h-4 w-4 text-primary" />
-                KI-Assistent
+  const fieldBlocks: Record<string, React.ReactNode> = {
+    'bezeichnung': (
+      <div key="bezeichnung" className="space-y-1.5">
+        <Label htmlFor="bezeichnung">Bezeichnung</Label>
+        <Input
+          id="bezeichnung"
+          placeholder=""
+          value={fields.bezeichnung ?? ''}
+          onChange={e => setFields(f => ({ ...f, bezeichnung: e.target.value }))}
+        />
+      </div>
+    ),
+    'inventarnummer': (
+      <div key="inventarnummer" className="space-y-1.5">
+        <Label htmlFor="inventarnummer">Inventarnummer</Label>
+        <Input
+          id="inventarnummer"
+          placeholder=""
+          value={fields.inventarnummer ?? ''}
+          onChange={e => setFields(f => ({ ...f, inventarnummer: e.target.value }))}
+        />
+      </div>
+    ),
+    'kategorie': (
+      <div key="kategorie" className="space-y-1.5">
+        <Label htmlFor="kategorie">Kategorie</Label>
+        <Combobox
+          id="kategorie"
+          placeholder=""
+          items={kategorienListAll.map(r => ({
+            id: r.record_id,
+            label: String(r.fields.kategorie_name ?? r.record_id),
+          }))}
+          value={extractRecordId(fields.kategorie)}
+          onChange={id => setFields(f => ({ ...f, kategorie: id ? createRecordUrl(APP_IDS.KATEGORIEN, id) : undefined }))}
+          searchPlaceholder="Suchen…"
+          emptyText="Kein Treffer"
+          onCreateNew={(q) => openCreateKategorien("kategorie", q)}
+          createLabel="Neu in Kategorien"
+        />
+      </div>
+    ),
+    'hersteller': (
+      <div key="hersteller" className="space-y-1.5">
+        <Label htmlFor="hersteller">Hersteller</Label>
+        <Input
+          id="hersteller"
+          placeholder=""
+          value={fields.hersteller ?? ''}
+          onChange={e => setFields(f => ({ ...f, hersteller: e.target.value }))}
+        />
+      </div>
+    ),
+    'modell': (
+      <div key="modell" className="space-y-1.5">
+        <Label htmlFor="modell">Modell</Label>
+        <Input
+          id="modell"
+          placeholder=""
+          value={fields.modell ?? ''}
+          onChange={e => setFields(f => ({ ...f, modell: e.target.value }))}
+        />
+      </div>
+    ),
+    'seriennummer': (
+      <div key="seriennummer" className="space-y-1.5">
+        <Label htmlFor="seriennummer">Seriennummer</Label>
+        <Input
+          id="seriennummer"
+          placeholder=""
+          value={fields.seriennummer ?? ''}
+          onChange={e => setFields(f => ({ ...f, seriennummer: e.target.value }))}
+        />
+      </div>
+    ),
+    'anschaffungsdatum': (
+      <div key="anschaffungsdatum" className="space-y-1.5">
+        <Label htmlFor="anschaffungsdatum">Anschaffungsdatum</Label>
+        <DatePicker
+          id="anschaffungsdatum"
+          placeholder=""
+          mode="date"
+          value={fields.anschaffungsdatum ?? null}
+          onChange={v => setFields(f => ({ ...f, anschaffungsdatum: v ?? undefined }))}
+        />
+      </div>
+    ),
+    'anschaffungspreis': (
+      <div key="anschaffungspreis" className="space-y-1.5">
+        <Label htmlFor="anschaffungspreis">Anschaffungspreis (EUR)</Label>
+        <Input
+          id="anschaffungspreis"
+          type="number"
+          step="any"
+          {...numberInputProps(formEnhancements, 'anschaffungspreis')}
+          placeholder=""
+          value={fields.anschaffungspreis !== undefined ? fields.anschaffungspreis : (computedValues['anschaffungspreis'] ?? '')}
+          onChange={e => setFields(f => ({ ...f, anschaffungspreis: clampNumberValue(formEnhancements, 'anschaffungspreis', e.target.value) }))}
+        />
+      </div>
+    ),
+    'zustand': (
+      <div key="zustand" className="space-y-1.5">
+        <Label htmlFor="zustand">Zustand</Label>
+        <div role="radiogroup" className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.zustand) === 'neu'}
+            onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'neu' ? undefined : 'neu') as any }))}
+            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.zustand) === 'neu'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            Neu
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.zustand) === 'gut'}
+            onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'gut' ? undefined : 'gut') as any }))}
+            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.zustand) === 'gut'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            Gut
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.zustand) === 'gebraucht'}
+            onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'gebraucht' ? undefined : 'gebraucht') as any }))}
+            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.zustand) === 'gebraucht'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            Gebraucht
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.zustand) === 'reparaturbeduerftig'}
+            onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'reparaturbeduerftig' ? undefined : 'reparaturbeduerftig') as any }))}
+            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.zustand) === 'reparaturbeduerftig'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            Reparaturbeduerftig
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.zustand) === 'ausser_betrieb'}
+            onClick={() => setFields(f => ({ ...f, zustand: (lookupKey(f.zustand) === 'ausser_betrieb' ? undefined : 'ausser_betrieb') as any }))}
+            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.zustand) === 'ausser_betrieb'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            Ausser Betrieb
+          </button>
+        </div>
+      </div>
+    ),
+    'standort': (
+      <div key="standort" className="space-y-1.5">
+        <Label htmlFor="standort">Standort / Lagerort</Label>
+        <Input
+          id="standort"
+          placeholder=""
+          value={fields.standort ?? ''}
+          onChange={e => setFields(f => ({ ...f, standort: e.target.value }))}
+        />
+      </div>
+    ),
+    'vermietbar': (
+      <div key="vermietbar" className="space-y-1.5">
+        <Label htmlFor="vermietbar">Zur Vermietung verfuegbar</Label>
+        <div className="flex items-center gap-2 pt-1">
+          <Checkbox
+            id="vermietbar"
+            checked={!!fields.vermietbar}
+            onCheckedChange={(v) => setFields(f => ({ ...f, vermietbar: !!v }))}
+          />
+          <Label htmlFor="vermietbar" className="font-normal">Zur Vermietung verfuegbar</Label>
+        </div>
+      </div>
+    ),
+    'tagesmietpreis': (
+      <div key="tagesmietpreis" className="space-y-1.5">
+        <Label htmlFor="tagesmietpreis">Tagesmietpreis (EUR)</Label>
+        <Input
+          id="tagesmietpreis"
+          type="number"
+          step="any"
+          {...numberInputProps(formEnhancements, 'tagesmietpreis')}
+          placeholder=""
+          value={fields.tagesmietpreis !== undefined ? fields.tagesmietpreis : (computedValues['tagesmietpreis'] ?? '')}
+          onChange={e => setFields(f => ({ ...f, tagesmietpreis: clampNumberValue(formEnhancements, 'tagesmietpreis', e.target.value) }))}
+        />
+      </div>
+    ),
+    'kaution_betrag': (
+      <div key="kaution_betrag" className="space-y-1.5">
+        <Label htmlFor="kaution_betrag">Kautionsbetrag (EUR)</Label>
+        <Input
+          id="kaution_betrag"
+          type="number"
+          step="any"
+          {...numberInputProps(formEnhancements, 'kaution_betrag')}
+          placeholder=""
+          value={fields.kaution_betrag !== undefined ? fields.kaution_betrag : (computedValues['kaution_betrag'] ?? '')}
+          onChange={e => setFields(f => ({ ...f, kaution_betrag: clampNumberValue(formEnhancements, 'kaution_betrag', e.target.value) }))}
+        />
+      </div>
+    ),
+    'foto': (
+      <div key="foto" className="space-y-1.5">
+        <Label htmlFor="foto">Foto des Werkzeugs</Label>
+        {fields.foto ? (
+          <div className="flex items-center gap-3 rounded-lg border p-2">
+            <div className="relative h-14 w-14 shrink-0 rounded-md bg-muted overflow-hidden">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <IconFileText size={20} className="text-muted-foreground" />
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Versteht Fotos, Dokumente und Text und füllt alles für dich aus</p>
+              <img
+                src={fields.foto}
+                alt=""
+                className="relative h-full w-full object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm truncate text-foreground">{fields.foto.split("/").pop()}</p>
+              <div className="flex gap-2 mt-1">
+                <label
+                  className="text-xs text-primary hover:underline cursor-pointer"
+                >
+                  Ändern
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const fileUrl = await uploadFile(file, file.name);
+                        setFields(f => ({ ...f, foto: fileUrl }));
+                      } catch (err) { console.error('Upload failed:', err); }
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-destructive"
+                  onClick={() => setFields(f => ({ ...f, foto: undefined }))}
+                >
+                  Entfernen
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <label
+            className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-muted-foreground/25 p-4 cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
+          >
+            <IconUpload size={20} className="text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Datei hochladen</span>
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const fileUrl = await uploadFile(file, file.name);
+                  setFields(f => ({ ...f, foto: fileUrl }));
+                } catch (err) { console.error('Upload failed:', err); }
+              }}
+            />
+          </label>
+        )}
+      </div>
+    ),
+    'notizen': (
+      <div key="notizen" className="space-y-1.5">
+        <Label htmlFor="notizen">Notizen</Label>
+        <Textarea
+          id="notizen"
+          placeholder=""
+          value={fields.notizen ?? ''}
+          onChange={e => setFields(f => ({ ...f, notizen: e.target.value }))}
+          rows={3}
+        />
+      </div>
+    ),
+  };
+  const orderedFields = applyFieldOrder(Object.keys(fieldBlocks), formEnhancements.fieldOrder);
+  const orderedFieldsKey = orderedFields.map((it) => typeof it === 'string' ? it : it.row.join('+')).join(',');
+
+  // Render-Modell für Computed-Felder:
+  //
+  //   • BACKEND-FELDER mit computed-Eintrag (z.B. gesamtpreis bei einer
+  //     Katzenpension) bleiben als normales Eingabe-Feld stehen. Der Number-
+  //     Input nutzt den computed-Wert als Vorschlag, der User kann jederzeit
+  //     überschreiben (clearing → restore computed).
+  //   • VIRTUELLE computed-Keys (Eintrag in formEnhancements.computed, ABER
+  //     kein passendes Backend-Feld in orderedFields) erscheinen NICHT als
+  //     Input, sondern unten als kompakte 'Berechnungen'-Übersicht oder als
+  //     Inline-Hint unter dem letzten beitragenden Input.
+  const FIELD_LABELS: Record<string, string> = {"bezeichnung": "Bezeichnung", "inventarnummer": "Inventarnummer", "kategorie": "Kategorie", "hersteller": "Hersteller", "modell": "Modell", "seriennummer": "Seriennummer", "anschaffungsdatum": "Anschaffungsdatum", "anschaffungspreis": "Anschaffungspreis (EUR)", "zustand": "Zustand", "standort": "Standort / Lagerort", "vermietbar": "Zur Vermietung verfuegbar", "tagesmietpreis": "Tagesmietpreis (EUR)", "kaution_betrag": "Kautionsbetrag (EUR)", "foto": "Foto des Werkzeugs", "notizen": "Notizen"};
+  const CURRENCY_KEYS = new Set<string>(["anschaffungspreis", "tagesmietpreis", "kaution_betrag"]);
+  // Applookup-Referenz-Labels: pro applookup-Feld in dieser Form (ownKey)
+  // eine Map { lookupKey: label } für ALLE Felder des Target-Schemas. Wird
+  // beim Render-Walk gefiltert auf die in der computed-Formel tatsächlich
+  // referenzierten lookupKeys (siehe applookupRefs unten).
+  const APPLOOKUP_LABELS: Record<string, Record<string, string>> = {"kategorie": {"kategorie_name": "Kategoriename", "kategorie_beschreibung": "Beschreibung"}};
+  const inputFields = useMemo(() => flattenFieldOrder(orderedFields), [orderedFieldsKey]);
+  const backendFieldSet = useMemo(() => new Set(inputFields), [inputFields.join(',')]);
+  const virtualComputed = useMemo(
+    () => Object.fromEntries(
+      Object.entries(formEnhancements.computed).filter(([k]) => !backendFieldSet.has(k)),
+    ),
+    [backendFieldSet],
+  );
+  const virtualFormEnhancements = useMemo(
+    () => ({ ...formEnhancements, computed: virtualComputed }),
+    [virtualComputed],
+  );
+  const computedLayout = useMemo(
+    () => classifyComputed(virtualFormEnhancements, inputFields, computedDeps),
+    [virtualFormEnhancements, inputFields.join(',')],
+  );
+  // Applookup-Referenzen: pro ownKey (Lookup-Feld im Form) die Liste der
+  // lookupKeys, die in irgendeiner computed-Formel referenziert werden.
+  // MODUS-1: aus dem Spec-Tree extrahiert. MODUS-2: aus dem Build-Time-
+  // Export computedApplookupRefs (parse-formulas hat Regex-Pairs gesammelt).
+  // Pro (ownKey, lookupKey)-Paar nur einmal; pro ownKey können aber mehrere
+  // lookupKeys gleichzeitig auftauchen (z.B. einzelpreis UND karten10_preis
+  // beim Yoga-Kurs), und alle werden separat als Inline-Hint gerendert.
+  const applookupRefs = useMemo(
+    () => mergeApplookupRefs(
+      extractApplookupRefs(formEnhancements.computed),
+      computedApplookupRefs,
+    ),
+    [],
+  );
+  function summaryLabel(k: string): string {
+    if (FIELD_LABELS[k]) return FIELD_LABELS[k];
+    // Leading underscore(s) als Virtual-Marker abstreifen; Unterstriche zu
+    // Leerzeichen, jedes Wort kapitalisieren. Umlaute kommen vom Sub-Agent
+    // direkt im Key (z. B. `_buchung_dauer_nächte`) — JS/TS/Vite unterstützen
+    // Unicode-Identifier nativ, daher keine ASCII-Transliteration nötig.
+    return k.replace(/^_+/, '')
+      .split('_')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  }
+  function formatSummaryValue(k: string, v: unknown): string {
+    if (v === undefined || v === null || v === '' || (typeof v === 'number' && !Number.isFinite(v))) return '—';
+    const n = typeof v === 'number' ? v : Number(v);
+    if (!Number.isFinite(n)) return String(v);
+    // Backend-Feld mit €-Label ODER virtueller Computed-Key, dessen Name nach Geld aussieht.
+    const looksLikeCurrency = CURRENCY_KEYS.has(k) || /(?:kosten|preis|betrag|gesamt|netto|brutto|summe|mwst|rabatt|anzahlung|umsatz|saldo)/i.test(k);
+    if (looksLikeCurrency) {
+      return n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    return n.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+  }
+
+  return (
+    <>
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-lg max-h-[92vh] flex flex-col overflow-hidden p-0 gap-0">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b flex flex-row items-center gap-3 space-y-0">
+          <DialogTitle className="flex-1 truncate text-left">{DIALOG_INTENT}</DialogTitle>
+          {enablePhotoScan && (
+            <button
+              type="button"
+              onClick={() => setAiOpen(o => !o)}
+              aria-expanded={aiOpen}
+              aria-controls="ai-fill-panel"
+              className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all mr-7 shadow-sm ${
+                aiOpen
+                  ? 'bg-primary text-primary-foreground ring-2 ring-primary/30'
+                  : 'bg-primary/10 text-primary border border-primary/30 hover:bg-primary/15 hover:border-primary/50'
+              }`}
+            >
+              <IconSparkles className={`h-3.5 w-3.5 ${aiOpen ? '' : 'text-primary'}`} />
+              <span className="hidden sm:inline">KI-Ausfüllen</span>
+              <IconChevronDown className={`h-3 w-3 transition-transform ${aiOpen ? 'rotate-180' : ''}`} />
+            </button>
+          )}
+        </DialogHeader>
+        {enablePhotoScan && aiOpen && (
+          <div id="ai-fill-panel" className="border-b bg-muted/20 px-6 py-4 space-y-3">
+            <p className="text-xs text-muted-foreground">Versteht Fotos, Dokumente und Text und füllt alles für dich aus</p>
             <div className="flex items-start gap-2 pl-0.5">
               <Checkbox
                 id="ai-use-personal-info"
@@ -376,227 +849,132 @@ export function WerkzeugbestandDialog({ open, onClose, onSubmit, defaultValues, 
                 <IconSparkles className="h-3.5 w-3.5 mr-1.5" />Analysieren
               </Button>
             )}
-            <div className="flex justify-center pt-1">
-              <IconArrowBigDownLinesFilled className="h-8 w-8 text-muted-foreground/30" />
-            </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="bezeichnung">Bezeichnung</Label>
-            <Input
-              id="bezeichnung"
-              value={fields.bezeichnung ?? ''}
-              onChange={e => setFields(f => ({ ...f, bezeichnung: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="inventarnummer">Inventarnummer</Label>
-            <Input
-              id="inventarnummer"
-              value={fields.inventarnummer ?? ''}
-              onChange={e => setFields(f => ({ ...f, inventarnummer: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="kategorie">Kategorie</Label>
-            <Select
-              value={extractRecordId(fields.kategorie) ?? 'none'}
-              onValueChange={v => setFields(f => ({ ...f, kategorie: v === 'none' ? undefined : createRecordUrl(APP_IDS.KATEGORIEN, v) }))}
-            >
-              <SelectTrigger id="kategorie"><SelectValue placeholder="Auswählen..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">—</SelectItem>
-                {kategorienList.map(r => (
-                  <SelectItem key={r.record_id} value={r.record_id}>
-                    {r.fields.kategorie_name ?? r.record_id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="hersteller">Hersteller</Label>
-            <Input
-              id="hersteller"
-              value={fields.hersteller ?? ''}
-              onChange={e => setFields(f => ({ ...f, hersteller: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="modell">Modell</Label>
-            <Input
-              id="modell"
-              value={fields.modell ?? ''}
-              onChange={e => setFields(f => ({ ...f, modell: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="seriennummer">Seriennummer</Label>
-            <Input
-              id="seriennummer"
-              value={fields.seriennummer ?? ''}
-              onChange={e => setFields(f => ({ ...f, seriennummer: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="anschaffungsdatum">Anschaffungsdatum</Label>
-            <Input
-              id="anschaffungsdatum"
-              type="date"
-              value={fields.anschaffungsdatum ?? ''}
-              onChange={e => setFields(f => ({ ...f, anschaffungsdatum: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="anschaffungspreis">Anschaffungspreis (EUR)</Label>
-            <Input
-              id="anschaffungspreis"
-              type="number"
-              value={fields.anschaffungspreis ?? ''}
-              onChange={e => setFields(f => ({ ...f, anschaffungspreis: e.target.value ? Number(e.target.value) : undefined }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="zustand">Zustand</Label>
-            <Select
-              value={lookupKey(fields.zustand) ?? 'none'}
-              onValueChange={v => setFields(f => ({ ...f, zustand: v === 'none' ? undefined : v as any }))}
-            >
-              <SelectTrigger id="zustand"><SelectValue placeholder="Auswählen..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">—</SelectItem>
-                <SelectItem value="neu">Neu</SelectItem>
-                <SelectItem value="gut">Gut</SelectItem>
-                <SelectItem value="gebraucht">Gebraucht</SelectItem>
-                <SelectItem value="reparaturbeduerftig">Reparaturbeduerftig</SelectItem>
-                <SelectItem value="ausser_betrieb">Ausser Betrieb</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="standort">Standort / Lagerort</Label>
-            <Input
-              id="standort"
-              value={fields.standort ?? ''}
-              onChange={e => setFields(f => ({ ...f, standort: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vermietbar">Zur Vermietung verfuegbar</Label>
-            <div className="flex items-center gap-2 pt-1">
-              <Checkbox
-                id="vermietbar"
-                checked={!!fields.vermietbar}
-                onCheckedChange={(v) => setFields(f => ({ ...f, vermietbar: !!v }))}
-              />
-              <Label htmlFor="vermietbar" className="font-normal">Zur Vermietung verfuegbar</Label>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="tagesmietpreis">Tagesmietpreis (EUR)</Label>
-            <Input
-              id="tagesmietpreis"
-              type="number"
-              value={fields.tagesmietpreis ?? ''}
-              onChange={e => setFields(f => ({ ...f, tagesmietpreis: e.target.value ? Number(e.target.value) : undefined }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="kaution_betrag">Kautionsbetrag (EUR)</Label>
-            <Input
-              id="kaution_betrag"
-              type="number"
-              value={fields.kaution_betrag ?? ''}
-              onChange={e => setFields(f => ({ ...f, kaution_betrag: e.target.value ? Number(e.target.value) : undefined }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="foto">Foto des Werkzeugs</Label>
-            {fields.foto ? (
-              <div className="flex items-center gap-3 rounded-lg border p-2">
-                <div className="relative h-14 w-14 shrink-0 rounded-md bg-muted overflow-hidden">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <IconFileText size={20} className="text-muted-foreground" />
+        <form onSubmit={handleSubmit} className="flex flex-1 flex-col min-h-0 min-w-0">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-4 space-y-4 min-w-0">
+            {(() => {
+              const renderField = (k: string) => {
+                const inlineHints = computedLayout.anchors[k] ?? [];
+                const refs = applookupRefs[k] ?? [];
+                return (
+                  <div key={k} className="space-y-1.5 min-w-0">
+                    {fieldBlocks[k]}
+                    {refs.map(({ lookupKey }) => {
+                      // Show the live numeric value the formula will pull from
+                      // the selected lookup target (e.g. "Monatspreis: 34,90 €"
+                      // under the Tarif combobox). Hidden while no lookup is
+                      // selected or the target field is non-numeric.
+                      const v = resolveApplookupRef(k, lookupKey, fields as Record<string, unknown>, computedContext);
+                      if (v === null) return null;
+                      const lbl = APPLOOKUP_LABELS[k]?.[lookupKey] ?? lookupKey;
+                      const text = formatSummaryValue(lookupKey, v);
+                      return (
+                        <div key={`alh-${k}-${lookupKey}`} className="flex items-center gap-1.5 pl-3 text-xs text-muted-foreground">
+                          <span className="text-primary/70">→</span>
+                          <span>{lbl}</span>
+                          <span className="ml-auto font-medium tabular-nums text-foreground">{text}</span>
+                        </div>
+                      );
+                    })}
+                    {inlineHints.map((cKey) => {
+                      const v = computedValues[cKey];
+                      const text = formatSummaryValue(cKey, v);
+                      if (text === '—') return null;
+                      return (
+                        <div key={cKey} className="flex items-center gap-1.5 pl-3 text-xs text-muted-foreground">
+                          <span className="text-primary/70">→</span>
+                          <span>{summaryLabel(cKey)}</span>
+                          <span className="ml-auto font-medium tabular-nums text-foreground">{text}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <img
-                    src={fields.foto}
-                    alt=""
-                    className="relative h-full w-full object-cover"
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate text-foreground">{fields.foto.split("/").pop()}</p>
-                  <div className="flex gap-2 mt-1">
-                    <label
-                      className="text-xs text-primary hover:underline cursor-pointer"
-                    >
-                      Ändern
-                      <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          try {
-                            const fileUrl = await uploadFile(file, file.name);
-                            setFields(f => ({ ...f, foto: fileUrl }));
-                          } catch (err) { console.error('Upload failed:', err); }
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="text-xs text-muted-foreground hover:text-destructive"
-                      onClick={() => setFields(f => ({ ...f, foto: undefined }))}
-                    >
-                      Entfernen
-                    </button>
+                );
+              };
+              return orderedFields.map((item, idx) => {
+                if (typeof item === 'string') return renderField(item);
+                const cols = item.cols ?? `repeat(${item.row.length}, minmax(0, 1fr))`;
+                return (
+                  <div key={`row-${idx}`} className="grid gap-3" style={{ gridTemplateColumns: cols }}>
+                    {item.row.map(renderField)}
                   </div>
-                </div>
+                );
+              });
+            })()}
+            {(computedLayout.aggregates.length > 0 || computedLayout.finalTotal) && (
+              <div className="mt-6 pt-4 border-t border-border space-y-1.5">
+                {computedLayout.aggregates.length > 0 && (
+                  <dl className="space-y-1.5 pb-2">
+                    {computedLayout.aggregates.map((k) => {
+                      const userVal = (fields as Record<string, unknown>)[k];
+                      const computed = computedValues[k];
+                      const v = userVal !== undefined && userVal !== null && userVal !== '' ? userVal : computed;
+                      return (
+                        <div key={k} className="flex justify-between items-baseline gap-3">
+                          <dt className="text-sm text-muted-foreground truncate">{summaryLabel(k)}</dt>
+                          <dd className="text-sm font-medium tabular-nums whitespace-nowrap">{formatSummaryValue(k, v)}</dd>
+                        </div>
+                      );
+                    })}
+                  </dl>
+                )}
+                {computedLayout.finalTotal && (() => {
+                  const k = computedLayout.finalTotal;
+                  const userVal = (fields as Record<string, unknown>)[k];
+                  const computed = computedValues[k];
+                  const v = userVal !== undefined && userVal !== null && userVal !== '' ? userVal : computed;
+                  // Innere Border nur wenn aggregates existieren — sonst hätten wir
+                  // zwei direkt aufeinanderfolgende Striche (Outer + Inner) mit nur
+                  // einer Aggregat-Zeile dazwischen → zu viel visuelles Rauschen.
+                  const sep = computedLayout.aggregates.length > 0 ? 'pt-3 border-t border-border' : 'pt-1';
+                  return (
+                    <div className={`flex justify-between items-baseline gap-3 ${sep}`}>
+                      <span className="text-base font-semibold text-foreground">{summaryLabel(k)}</span>
+                      <span className="text-lg font-bold tabular-nums whitespace-nowrap text-foreground">{formatSummaryValue(k, v)}</span>
+                    </div>
+                  );
+                })()}
               </div>
-            ) : (
-              <label
-                className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-muted-foreground/25 p-4 cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
-              >
-                <IconUpload size={20} className="text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Datei hochladen</span>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    try {
-                      const fileUrl = await uploadFile(file, file.name);
-                      setFields(f => ({ ...f, foto: fileUrl }));
-                    } catch (err) { console.error('Upload failed:', err); }
-                  }}
-                />
-              </label>
+            )}
+            {recordId && (
+              <div className="pt-2 border-t border-border">
+                <AttachmentsSection appId={APP_IDS.WERKZEUGBESTAND} recordId={recordId} />
+              </div>
             )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="notizen">Notizen</Label>
-            <Textarea
-              id="notizen"
-              value={fields.notizen ?? ''}
-              onChange={e => setFields(f => ({ ...f, notizen: e.target.value }))}
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 border-t bg-background/95 backdrop-blur px-6 py-3 gap-2">
             <Button type="button" variant="outline" onClick={onClose}>Abbrechen</Button>
-            <Button type="submit" disabled={saving}>
+            <Button
+              type="submit"
+              disabled={saving || !isDirty}
+            >
               {saving ? 'Speichern...' : defaultValues ? 'Speichern' : 'Erstellen'}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+    {createKategorienOpen && (
+      <KategorienDialog
+        open={createKategorienOpen}
+        onClose={() => setCreateKategorienOpen(false)}
+        onSubmit={async (newFields) => {
+          const result = await LivingAppsService.createKategorienEntry(newFields as any) as { id?: string };
+          if (result?.id) {
+            const newRec = { record_id: result.id, fields: newFields } as unknown as Kategorien;
+            setExtraKategorien(prev => [...prev, newRec]);
+            const url = createRecordUrl(APP_IDS.KATEGORIEN, result.id);
+            setFields(prev => ({ ...prev, [createKategorienField]: url } as any));
+          }
+          setCreateKategorienOpen(false);
+        }}
+        defaultValues={createKategorienInitial
+          ? ({ kategorie_name: createKategorienInitial } as any)
+          : undefined}
+      />
+    )}
+    </>
   );
 }
